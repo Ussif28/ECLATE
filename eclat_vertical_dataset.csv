@@ -1,0 +1,9 @@
+Item,TID_Set
+Bread,"T1,T2,T4,T5,T7,T9"
+Milk,"T1,T3,T4,T6,T8"
+Diaper,"T2,T4,T5,T7,T8,T10"
+Beer,"T2,T5,T7,T9"
+Eggs,"T1,T3,T6,T8,T10"
+Cola,"T3,T5,T6,T9"
+Butter,"T1,T4,T6,T8"
+Cheese,"T2,T3,T7,T10"
