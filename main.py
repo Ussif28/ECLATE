@@ -3,6 +3,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import messagebox
 import eclat
+import transformer
 root = tk.Tk()
 #wedges add here
 
@@ -33,7 +34,12 @@ def calc():
     # reassign variable (data) to aclate algorithm function
     eclat.candidate_item_sets.clear()
     try:
-        item_sets = eclat.convert_csv_dictionaries(path.get())
+        with open(path.get(), 'r', encoding='utf-8-sig') as f:
+            first_line = f.readline()
+        if ";" in first_line:  # horizontal file -> convert to vertical first
+            item_sets = transformer.transform_to_vertical(transformer.read_transactions_from_csv(path.get()))[0]
+        else:  # already vertical
+            item_sets = eclat.convert_csv_dictionaries(path.get())
     except FileNotFoundError:
         messagebox.showerror("Error", "File not found")
         return
