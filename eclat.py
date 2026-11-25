@@ -89,7 +89,6 @@ def eclat_algorithm(csv_file_name, min_support):
     print('Strong Rules')
     print(candidate_strong_rules)
 
-
 if __name__ == "__main__":
     eclat_algorithm('eclat_vertical_dataset.csv', 1 / 3)
 
