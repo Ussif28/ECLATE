@@ -88,10 +88,10 @@ def eclat_algorithm(csv_file_name, min_support):
     candidate_strong_rules = get_strong_rules(min_support)
     print('Strong Rules')
     print(candidate_strong_rules)
-
+""" if you want to run eclat algo only remove comments
 if __name__ == "__main__":
     eclat_algorithm('eclat_vertical_dataset.csv', 1 / 3)
 
 
-
+"""
 
