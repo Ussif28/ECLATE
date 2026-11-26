@@ -41,7 +41,7 @@ Excel / CSV file
 
 Press **Export** after **Calculate** and choose where to save. The report is created by `eclat_reporting.py` and has three sheets:
 
-1. **Frequent Itemsets** – itemset, size, support count, support %
+1. **Frequent Itemsets** – itemset, size, support count, support %, lift (lift is shown only for itemsets with 2+ items)
 2. **Association Rules** – antecedent, consequent, support %, confidence %, lift
 3. **Strong Rules** – the rules that pass the minimum support and confidence
 

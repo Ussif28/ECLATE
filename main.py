@@ -8,11 +8,9 @@ import preprocessing
 import eclat_reporting
 
 root = tk.Tk()
-# wedges add here
-
 root.geometry("1200x700")
-# title
 root.title("Ecla Track")
+
 # Entries
 min_supp = tk.Entry(root)
 min_conf = tk.Entry(root)
@@ -32,10 +30,9 @@ minconf = tk.Label(root, text="Confidence (0-1)  :", font=("Arial", 12))
 file_path = tk.Label(root, text=" file path : ", font=("Arial", 12))
 
 
-# algo = tk.Label(root, text="Algorithm")
-
-# validate function
-# ---------------------
+def format_itemset_label(raw_key):
+    items = [item.strip() for item in raw_key.split(",") if item.strip()]
+    return ", ".join(items)
 
 
 # read any supported file and return (vertical item_sets, number of transactions)
@@ -44,12 +41,15 @@ def load_item_sets(file):
     if file.lower().endswith(".xlsx"):
         transactions = preprocessing.preprocess_data(file)
         return transformer.transform_to_vertical(transactions)
-    with open(file, 'r', encoding='utf-8-sig') as f:
+
+    with open(file, "r", encoding="utf-8-sig") as f:
         first_line = f.readline()
+
     # horizontal csv file (separated by ;) -> transformer -> vertical
     if ";" in first_line:
         transactions = transformer.read_transactions_from_csv(file)
         return transformer.transform_to_vertical(transactions)
+
     # already vertical csv file
     item_sets = eclat.convert_csv_dictionaries(file)
     all_tids = set()
@@ -64,41 +64,67 @@ def calc():
     for old in rules_table.get_children():
         rules_table.delete(old)
     last.clear()
-    # here data taken from aclate algorithm
-    # reassign variable (data) to aclate algorithm function
+
     eclat.candidate_item_sets.clear()
+
     try:
-        item_sets, total = load_item_sets(path.get())
+        item_sets, total = load_item_sets(path.get().strip())
     except FileNotFoundError:
         messagebox.showerror("Error", "File not found")
         return
     except Exception as e:
         messagebox.showerror("Error", "Could not read the file:\n" + str(e))
         return
+
+    if total <= 0:
+        messagebox.showerror("Error", "No transactions found in the file")
+        return
+
     min_count = int(min_supp.get())
+
     try:
         conf = float(min_conf.get())
     except ValueError:
         messagebox.showerror("Error", "Confidence must be a number between 0 and 1")
         return
+
     if conf < 0 or conf > 1:
         messagebox.showerror("Error", "Confidence must be a number between 0 and 1")
         return
+
     eclat.get_candidate_item_sets(item_sets, 0, min_count, min_count)
     data = [[k, len(v)] for k, v in eclat.candidate_item_sets.items()]
-    for text, num in data:
-        table.insert("", tk.END, values=(text, num))
+
+    itemset_lift = {}
+    for raw_key, num in data:
+        names = [name.strip() for name in raw_key.split(",") if name.strip()]
+        display_name = ", ".join(names)
+
+        if len(names) > 1:
+            expected = 1.0
+            for name in names:
+                expected *= len(item_sets[name]) / total
+            lift_value = round((num / total) / expected, 2) if expected > 0 else 0.0
+            itemset_lift[display_name] = lift_value
+        else:
+            lift_value = "-"  # lift requires at least 2 items
+            itemset_lift[display_name] = "-"
+
+        table.insert("", tk.END, values=(display_name, num, lift_value))
+
     table.yview_moveto(1)
 
     # strong rules (from eclat.py), plus support count and lift for the report
     rules = []
     for rule_key, confidence in eclat.get_strong_rules(conf).items():
         left, right = rule_key.split("->")
-        antecedent = left.split(",")
-        consequent = right.split(",")
+        antecedent = [i.strip() for i in left.split(",") if i.strip()]
+        consequent = [i.strip() for i in right.split(",") if i.strip()]
+
         support_count = len(set.intersection(*[item_sets[i] for i in antecedent + consequent]))
         consequent_support = len(set.intersection(*[item_sets[i] for i in consequent])) / total
-        lift = confidence / consequent_support
+        lift = (confidence / consequent_support) if consequent_support > 0 else 0.0
+
         rules.append({
             "antecedent": antecedent,
             "consequent": consequent,
@@ -106,12 +132,23 @@ def calc():
             "confidence": confidence,
             "lift": lift,
         })
-        # EDIT 2: lift added as the 4th value shown in the table
-        rules_table.insert("", tk.END,
-                           values=(left + "  ->  " + right, support_count, round(confidence, 2), round(lift, 2)))
 
-    last["itemsets"] = [{"itemset": k.split(","), "support_count": len(v)}
-                        for k, v in eclat.candidate_item_sets.items()]
+        rules_table.insert(
+            "",
+            tk.END,
+            values=(
+                ", ".join(antecedent) + "  ->  " + ", ".join(consequent),
+                support_count,
+                round(confidence, 2),
+                round(lift, 2),
+            ),
+        )
+
+    last["itemset_lift"] = itemset_lift
+    last["itemsets"] = [
+        {"itemset": [i.strip() for i in k.split(",") if i.strip()], "support_count": len(v)}
+        for k, v in eclat.candidate_item_sets.items()
+    ]
     last["rules"] = rules
     last["total"] = total
     last["min_count"] = min_count
@@ -123,56 +160,65 @@ def export_excel():
     if not last:
         messagebox.showerror("Error", "Press Calculate first")
         return
-    file = filedialog.asksaveasfilename(defaultextension=".xlsx",
-                                        filetypes=[("Excel files", "*.xlsx")],
-                                        initialfile="ECLAT_Report.xlsx")
+
+    file = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel files", "*.xlsx")],
+        initialfile="ECLAT_Report.xlsx",
+    )
     if not file:
         return
+
     total = last["total"]
     if last["itemsets"]:
         itemsets_df = eclat_reporting.prepare_frequent_itemsets_report(last["itemsets"], total)
     else:
         itemsets_df = pd.DataFrame(columns=["Itemset", "Itemset Size", "Support Count", "Support %"])
+
+    if "Itemset" in itemsets_df.columns:
+        normalized_col = itemsets_df["Itemset"].astype(str).map(format_itemset_label)
+        itemsets_df["Lift"] = normalized_col.map(last.get("itemset_lift", {}))
+
     if last["rules"]:
         rules_df = eclat_reporting.prepare_association_rules_report(last["rules"], total)
     else:
         rules_df = pd.DataFrame(columns=["Antecedent", "Consequent", "Support %", "Confidence %", "Lift"])
+
     strong_df = eclat_reporting.prepare_strong_rules_report(
         rules_df,
-        last["min_count"] / total * 100,
-        last["conf"] * 100
+        (last["min_count"] / total) * 100,
+        last["conf"] * 100,
     )
+
     try:
         eclat_reporting.export_eclat_report(itemsets_df, rules_df, strong_df, output_file=file)
     except PermissionError:
         messagebox.showerror("Error", "Close the Excel file first, then try again")
         return
+
     messagebox.showinfo("Export", "Saved successfully")
 
 
-# validate from support count number passes by user
+# validate support count and file path before calculation
 def check():
     try:
         num = int(min_supp.get())
-        file = path.get()
-        if 0 > num:
-            messagebox.showerror("Error", "Number must be positive integer")
+        file = path.get().strip()
+        if num <= 0:
+            messagebox.showerror("Error", "Number must be a positive integer")
         elif len(file) == 0:
             messagebox.showerror("Error", "No File Path specified")
         else:
             calc()
-            # return min support (num) and file path (file)
             return num, file
     except ValueError:
         messagebox.showerror("Error", "Enter a valid integer")
 
 
-# ----------------------
-
 # algo
 box = tk.Label(root, text=" Choose Algorithm ", padx=10, pady=10, font=("Arial", 12))
+
 # buttons
-# stop = tk.Button(root ,text ="Stop",width=10, command = root.destroy)
 export = tk.Button(root, text="Export", width=10, command=export_excel)
 calculate = tk.Button(root, text="Calculate", width=10, command=check)
 
@@ -183,42 +229,45 @@ def select(event):
     box.config(text="Selected Item: " + selected_item)
 
 
-# box.grid(row=0, column=0)
 combo_box = ttk.Combobox(
     root,
-    values=["ECLATE"],
+    values=["ECLAT"],
     state="readonly",
     width=40,
 )
-
-combo_box.set("ECLATE")
-
+combo_box.set("ECLAT")
 combo_box.bind("<<ComboboxSelected>>", select)
+
 # toolbar
 menu = tk.Menu(root)
 root.config(menu=menu)
-filemenu = tk.Menu(menu)
+
+filemenu = tk.Menu(menu, tearoff=0)
 menu.add_cascade(label="File", menu=filemenu)
 filemenu.add_command(label="New")
 filemenu.add_command(label="Open...")
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
 
-helpmenu = tk.Menu(menu)
+helpmenu = tk.Menu(menu, tearoff=0)
 menu.add_cascade(label="Help", menu=helpmenu)
 helpmenu.add_command(label="About")
 
 # TABLE FRAME (two tabs: itemsets / strong rules)
 notebook = ttk.Notebook(root)
+
 frame = tk.Frame(notebook)
 frame.rowconfigure(0, weight=1)
 frame.columnconfigure(0, weight=1)
+
 rules_frame = tk.Frame(notebook)
 rules_frame.rowconfigure(0, weight=1)
 rules_frame.columnconfigure(0, weight=1)
+
 notebook.add(frame, text="Frequent Itemsets")
 notebook.add(rules_frame, text="Strong Rules")
-# table setting
+
+# table style
 style = ttk.Style()
 style.theme_use("clam")
 style.configure(
@@ -226,14 +275,18 @@ style.configure(
     background="black",
     foreground="white",
     relief="flat",
-    # font=("Arial",12,"bold"),
 )
-table = ttk.Treeview(frame, columns=("Name", "num"), show="headings")
+
+# Frequent Itemsets table (with Lift column)
+table = ttk.Treeview(frame, columns=("Name", "num", "lift"), show="headings")
 table.heading("Name", text="Item Set")
 table.heading("num", text="Support Count")
-table.column("Name", width=450, anchor="center")
-table.column("num", width=350, anchor="center")
-# EDIT 1: rules table now has a 4th column "Lift"
+table.heading("lift", text="Lift")
+table.column("Name", width=350, anchor="center")
+table.column("num", width=200, anchor="center")
+table.column("lift", width=200, anchor="center")
+
+# Strong Rules table
 rules_table = ttk.Treeview(rules_frame, columns=("rule", "count", "conf", "lift"), show="headings")
 rules_table.heading("rule", text="Rule")
 rules_table.heading("count", text="Support Count")
@@ -243,15 +296,17 @@ rules_table.column("rule", width=350, anchor="center")
 rules_table.column("count", width=150, anchor="center")
 rules_table.column("conf", width=150, anchor="center")
 rules_table.column("lift", width=150, anchor="center")
-# scroller or slider
+
+# scrollbars
 scroll_y = tk.Scrollbar(frame, orient="vertical", command=table.yview)
 scroll_x = tk.Scrollbar(frame, orient="horizontal", command=table.xview)
 table.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+
 rscroll_y = tk.Scrollbar(rules_frame, orient="vertical", command=rules_table.yview)
 rscroll_x = tk.Scrollbar(rules_frame, orient="horizontal", command=rules_table.xview)
 rules_table.configure(yscrollcommand=rscroll_y.set, xscrollcommand=rscroll_x.set)
 
-# geometry by place function for Elements
+# geometry placement
 head.place(relx=0.5, y=40, anchor="center")
 box.place(relx=0.1, y=120)
 combo_box.place(relx=0.12, y=170)
@@ -261,13 +316,17 @@ minsup.place(relx=0.8, y=180, anchor="center")
 min_supp.place(relx=0.91, y=180, anchor="center")
 minconf.place(relx=0.8, y=215, anchor="center")
 min_conf.place(relx=0.91, y=215, anchor="center")
+
 notebook.place(relx=0.5, y=450, width=800, height=420, anchor="center")
+
 table.grid(row=0, column=0, sticky="nsew")
 scroll_y.grid(row=0, column=1, sticky="ns")
 scroll_x.grid(row=1, column=0, sticky="ew")
+
 rules_table.grid(row=0, column=0, sticky="nsew")
 rscroll_y.grid(row=0, column=1, sticky="ns")
 rscroll_x.grid(row=1, column=0, sticky="ew")
+
 export.place(relx=0.2, rely=0.9, anchor="center")
 calculate.place(relx=0.8, rely=0.9, anchor="center")
 
