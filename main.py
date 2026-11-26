@@ -1,4 +1,3 @@
-
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import messagebox, filedialog
@@ -7,13 +6,14 @@ import eclat
 import transformer
 import preprocessing
 import eclat_reporting
+
 root = tk.Tk()
-#wedges add here
+# wedges add here
 
 root.geometry("1200x700")
-#title
+# title
 root.title("Ecla Track")
-#Entries
+# Entries
 min_supp = tk.Entry(root)
 min_conf = tk.Entry(root)
 min_conf.insert(0, "0.6")
@@ -22,18 +22,20 @@ path = tk.Entry(root)
 # last results (used by the Export button)
 last = {}
 
-#labels
-head = tk.Label(root,text="Ecla Track",font=("Arial",40,"bold"))
+# labels
+head = tk.Label(root, text="Ecla Track", font=("Arial", 40, "bold"))
 line = tk.Frame(root, bg="black", height=2, width=300)
-line.place(relx=0.5, y=90,anchor="center",width=600)
+line.place(relx=0.5, y=90, anchor="center", width=600)
 
-minsup = tk.Label(root, text="Minimum Support  :",font=("Arial",12))
-minconf = tk.Label(root, text="Confidence (0-1)  :",font=("Arial",12))
-file_path = tk.Label(root, text=" file path : ",font=("Arial",12))
-#algo = tk.Label(root, text="Algorithm")
+minsup = tk.Label(root, text="Minimum Support  :", font=("Arial", 12))
+minconf = tk.Label(root, text="Confidence (0-1)  :", font=("Arial", 12))
+file_path = tk.Label(root, text=" file path : ", font=("Arial", 12))
+
+
+# algo = tk.Label(root, text="Algorithm")
 
 # validate function
-#---------------------
+# ---------------------
 
 
 # read any supported file and return (vertical item_sets, number of transactions)
@@ -84,8 +86,8 @@ def calc():
         return
     eclat.get_candidate_item_sets(item_sets, 0, min_count, min_count)
     data = [[k, len(v)] for k, v in eclat.candidate_item_sets.items()]
-    for text , num in data:
-        table.insert("" ,tk.END,values=(text,num))
+    for text, num in data:
+        table.insert("", tk.END, values=(text, num))
     table.yview_moveto(1)
 
     # strong rules (from eclat.py), plus support count and lift for the report
@@ -96,14 +98,17 @@ def calc():
         consequent = right.split(",")
         support_count = len(set.intersection(*[item_sets[i] for i in antecedent + consequent]))
         consequent_support = len(set.intersection(*[item_sets[i] for i in consequent])) / total
+        lift = confidence / consequent_support
         rules.append({
             "antecedent": antecedent,
             "consequent": consequent,
             "support_count": support_count,
             "confidence": confidence,
-            "lift": confidence / consequent_support,
+            "lift": lift,
         })
-        rules_table.insert("", tk.END, values=(left + "  ->  " + right, support_count, round(confidence, 2)))
+        # EDIT 2: lift added as the 4th value shown in the table
+        rules_table.insert("", tk.END,
+                           values=(left + "  ->  " + right, support_count, round(confidence, 2), round(lift, 2)))
 
     last["itemsets"] = [{"itemset": k.split(","), "support_count": len(v)}
                         for k, v in eclat.candidate_item_sets.items()]
@@ -150,24 +155,26 @@ def check():
     try:
         num = int(min_supp.get())
         file = path.get()
-        if 0 > num :
+        if 0 > num:
             messagebox.showerror("Error", "Number must be positive integer")
-        elif len(file) == 0 :
+        elif len(file) == 0:
             messagebox.showerror("Error", "No File Path specified")
         else:
             calc()
             # return min support (num) and file path (file)
-            return num , file
+            return num, file
     except ValueError:
         messagebox.showerror("Error", "Enter a valid integer")
-#----------------------
 
-#algo
-box = tk.Label(root, text=" Choose Algorithm ",padx=10,pady=10,font=("Arial",12))
-#buttons
-#stop = tk.Button(root ,text ="Stop",width=10, command = root.destroy)
-export = tk.Button(root ,text ="Export",width=10,command = export_excel)
-calculate = tk.Button(root ,text ="Calculate",width=10,command =check)
+
+# ----------------------
+
+# algo
+box = tk.Label(root, text=" Choose Algorithm ", padx=10, pady=10, font=("Arial", 12))
+# buttons
+# stop = tk.Button(root ,text ="Stop",width=10, command = root.destroy)
+export = tk.Button(root, text="Export", width=10, command=export_excel)
+calculate = tk.Button(root, text="Calculate", width=10, command=check)
 
 
 # combo box
@@ -176,16 +183,13 @@ def select(event):
     box.config(text="Selected Item: " + selected_item)
 
 
-
-
-#box.grid(row=0, column=0)
+# box.grid(row=0, column=0)
 combo_box = ttk.Combobox(
     root,
     values=["ECLATE"],
     state="readonly",
     width=40,
 )
-
 
 combo_box.set("ECLATE")
 
@@ -214,7 +218,7 @@ rules_frame.rowconfigure(0, weight=1)
 rules_frame.columnconfigure(0, weight=1)
 notebook.add(frame, text="Frequent Itemsets")
 notebook.add(rules_frame, text="Strong Rules")
-#table setting
+# table setting
 style = ttk.Style()
 style.theme_use("clam")
 style.configure(
@@ -222,47 +226,49 @@ style.configure(
     background="black",
     foreground="white",
     relief="flat",
-    #font=("Arial",12,"bold"),
+    # font=("Arial",12,"bold"),
 )
-table = ttk.Treeview(frame,columns=("Name","num"),show="headings")
-table.heading("Name",text="Item Set")
-table.heading("num",text="Support Count")
-table.column("Name",width=450,anchor="center")
-table.column("num",width=350,anchor="center")
-rules_table = ttk.Treeview(rules_frame,columns=("rule","count","conf"),show="headings")
-rules_table.heading("rule",text="Rule")
-rules_table.heading("count",text="Support Count")
-rules_table.heading("conf",text="Confidence")
-rules_table.column("rule",width=450,anchor="center")
-rules_table.column("count",width=175,anchor="center")
-rules_table.column("conf",width=175,anchor="center")
+table = ttk.Treeview(frame, columns=("Name", "num"), show="headings")
+table.heading("Name", text="Item Set")
+table.heading("num", text="Support Count")
+table.column("Name", width=450, anchor="center")
+table.column("num", width=350, anchor="center")
+# EDIT 1: rules table now has a 4th column "Lift"
+rules_table = ttk.Treeview(rules_frame, columns=("rule", "count", "conf", "lift"), show="headings")
+rules_table.heading("rule", text="Rule")
+rules_table.heading("count", text="Support Count")
+rules_table.heading("conf", text="Confidence")
+rules_table.heading("lift", text="Dependency")
+rules_table.column("rule", width=350, anchor="center")
+rules_table.column("count", width=150, anchor="center")
+rules_table.column("conf", width=150, anchor="center")
+rules_table.column("lift", width=150, anchor="center")
 # scroller or slider
-scroll_y = tk.Scrollbar(frame,orient="vertical",command=table.yview)
-scroll_x = tk.Scrollbar(frame,orient="horizontal",command=table.xview)
+scroll_y = tk.Scrollbar(frame, orient="vertical", command=table.yview)
+scroll_x = tk.Scrollbar(frame, orient="horizontal", command=table.xview)
 table.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
-rscroll_y = tk.Scrollbar(rules_frame,orient="vertical",command=rules_table.yview)
-rscroll_x = tk.Scrollbar(rules_frame,orient="horizontal",command=rules_table.xview)
+rscroll_y = tk.Scrollbar(rules_frame, orient="vertical", command=rules_table.yview)
+rscroll_x = tk.Scrollbar(rules_frame, orient="horizontal", command=rules_table.xview)
 rules_table.configure(yscrollcommand=rscroll_y.set, xscrollcommand=rscroll_x.set)
 
-
 # geometry by place function for Elements
-head.place(relx=0.5 , y = 40 , anchor="center")
-box.place( relx = 0.1  , y=120 )
-combo_box.place( relx = 0.12  , y=170 )
-file_path.place( relx=0.4 , y=180 , anchor="center")
-path.place( relx=0.5 , y=180 , anchor="center" ,width=150)
-minsup.place( relx=0.8 , y=180 , anchor="center")
-min_supp.place( relx=0.91 , y=180 , anchor="center")
-minconf.place( relx=0.8 , y=215 , anchor="center")
-min_conf.place( relx=0.91 , y=215 , anchor="center")
-notebook.place(relx=0.5,y=450,width=800,height=420,anchor="center")
-table.grid(row=0,column=0,sticky="nsew")
-scroll_y.grid(row=0,column=1,sticky="ns")
-scroll_x.grid(row=1,column=0,sticky="ew")
-rules_table.grid(row=0,column=0,sticky="nsew")
-rscroll_y.grid(row=0,column=1,sticky="ns")
-rscroll_x.grid(row=1,column=0,sticky="ew")
-export.place(relx=0.2,rely=0.9,anchor="center")
-calculate.place(relx=0.8,rely=0.9,anchor="center")
+head.place(relx=0.5, y=40, anchor="center")
+box.place(relx=0.1, y=120)
+combo_box.place(relx=0.12, y=170)
+file_path.place(relx=0.4, y=180, anchor="center")
+path.place(relx=0.5, y=180, anchor="center", width=150)
+minsup.place(relx=0.8, y=180, anchor="center")
+min_supp.place(relx=0.91, y=180, anchor="center")
+minconf.place(relx=0.8, y=215, anchor="center")
+min_conf.place(relx=0.91, y=215, anchor="center")
+notebook.place(relx=0.5, y=450, width=800, height=420, anchor="center")
+table.grid(row=0, column=0, sticky="nsew")
+scroll_y.grid(row=0, column=1, sticky="ns")
+scroll_x.grid(row=1, column=0, sticky="ew")
+rules_table.grid(row=0, column=0, sticky="nsew")
+rscroll_y.grid(row=0, column=1, sticky="ns")
+rscroll_x.grid(row=1, column=0, sticky="ew")
+export.place(relx=0.2, rely=0.9, anchor="center")
+calculate.place(relx=0.8, rely=0.9, anchor="center")
 
 root.mainloop()
