@@ -133,19 +133,6 @@ def export_excel():
         itemsets_df = eclat_reporting.prepare_frequent_itemsets_report(last["itemsets"], total)
     else:
         itemsets_df = pd.DataFrame(columns=["Itemset", "Itemset Size", "Support Count", "Support %"])
-    # lift for every itemset of 2+ items (single items are left empty)
-    counts = {", ".join(i["itemset"]): i["support_count"] for i in last["itemsets"]}
-
-    def itemset_lift(name):
-        items = name.split(", ")
-        if len(items) < 2:
-            return None
-        expected = 1
-        for item in items:
-            expected = expected * counts[item] / total
-        return round(counts[name] / total / expected, 2)
-
-    itemsets_df["Lift"] = itemsets_df["Itemset"].apply(itemset_lift)
     if last["rules"]:
         rules_df = eclat_reporting.prepare_association_rules_report(last["rules"], total)
     else:
