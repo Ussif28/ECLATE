@@ -139,6 +139,7 @@ def export_excel():
         rules_df = pd.DataFrame(columns=["Antecedent", "Consequent", "Support %", "Confidence %", "Lift"])
     strong_df = eclat_reporting.prepare_strong_rules_report(
         rules_df,
+
         last["min_count"] / total * 100,
         last["conf"] * 100
     )
